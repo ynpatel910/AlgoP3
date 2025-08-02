@@ -151,7 +151,7 @@ vector<County> loadCounties(const string &filename) {
                 double val = stod(cells[i]);
                 c.metrics[key] = val;
             } catch (...) {
-                // skip invalid
+                // skips invalid
                 cout << "Warning: non-numeric value for county '" << c.name;
             }
         }
@@ -160,6 +160,23 @@ vector<County> loadCounties(const string &filename) {
     }
 
     return counties;
+}
+
+// Function to compute the score for a county based on selected metrics and their weights
+double compute_score(const County &c, const unordered_map<string, double> &weights) {
+    double score = 0.0;
+    double totalWeight = 0.0;
+    for (auto &[metric, weight] : weights) {
+        auto it = c.metrics.find(metric);
+        if (it != c.metrics.end()) {
+            score += it->second * weight;
+            totalWeight += weight;
+        }
+    }
+    if (totalWeight == 0.0) {
+        return 0.0; // Avoid division by zero
+    }
+    return score / totalWeight; // Normalize the score
 }
 
 int main() {
