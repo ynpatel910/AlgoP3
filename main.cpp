@@ -86,7 +86,9 @@ void runMenu(vector<pair<char,string>> core, vector<pair<char,string>> full) {
 // Function to trim whitespace from the start and end of a string
 static inline string trim(const string &s) {
     size_t start = s.find_first_not_of(" \t\r\n");
-    if (start == string::npos) return "";
+    if (start == string::npos) {
+        return "";
+    }
     size_t end = s.find_last_not_of(" \t\r\n");
     return s.substr(start, end - start + 1);
 }
@@ -120,12 +122,14 @@ vector<County> loadCounties(const string &filename) {
             headers.push_back(trim(cell));
         }
     }
+
     // Check if headers are present
     int idxCounty = -1, idxState = -1;
-    for (int i = 0; i < (int)headers.size(); ++i) {
+    for (int i = 0; i < static_cast<int>(headers.size()); i++) {
         if (headers[i] == "County") idxCounty = i;
         else if (headers[i] == "State") idxState = i;
     }
+
     // Check if County and State columns are present
     if (idxCounty == -1 || idxState == -1) {
         cout << "CSV missing County or State column" << endl;
@@ -139,8 +143,9 @@ vector<County> loadCounties(const string &filename) {
         while (getline(ss, cell, ',')) {
             cells.push_back(trim(cell));
         }
+        
         // if malformed row then it skips
-        if ((int)cells.size() != (int)headers.size()) {
+        if (static_cast<int>(cells.size()) != static_cast<int>(headers.size())) {
             
             continue;
         }
@@ -150,7 +155,7 @@ vector<County> loadCounties(const string &filename) {
         c.state = cells[idxState];
 
         // Skip if county or state is empty
-        for (int i = 0; i < (int)headers.size(); ++i) {
+        for (int i = 0; i < static_cast<int>(headers.size()); i++) {
             if (i == idxCounty || i == idxState) continue;
             string key = headers[i];
             if (cells[i].empty()) continue;
