@@ -1,5 +1,9 @@
 #include <iostream>
 #include <vector>
+#include <fstream>
+#include <sstream>
+#include <algorithm>
+#include <unordered_map>
 #include <string>
 using namespace std;
 vector<pair<char, string>> loadCoreMetrics() {
@@ -76,6 +80,88 @@ void runMenu(vector<pair<char,string>> core, vector<pair<char,string>> full) {
     }
 
 }
+
+static inline string trim(const string &s) {
+    size_t start = s.find_first_not_of(" \t\r\n");
+    if (start == string::npos) return "";
+    size_t end = s.find_last_not_of(" \t\r\n");
+    return s.substr(start, end - start + 1);
+}
+
+struct County {
+    string name;
+    string state;
+    unordered_map<string, double> metrics;
+};
+
+vector<County> loadCounties(const string &filename) {
+    vector<County> counties;
+    ifstream in(filename);
+    if (!in.is_open()) {
+        cout << "Failed to open " << filename << endl;
+        return counties;
+    }
+    string line;
+    vector<string> headers;
+    if (!getline(in, line)) return counties;
+
+    // normalize the header while converting tabs to spaces and split on commas
+    {
+        string normalized = line;
+        replace(normalized.begin(), normalized.end(), '\t', ' ');
+        stringstream ss(normalized);
+        string cell;
+        while (getline(ss, cell, ',')) {
+            headers.push_back(trim(cell));
+        }
+    }
+
+    int idxCounty = -1, idxState = -1;
+    for (int i = 0; i < (int)headers.size(); ++i) {
+        if (headers[i] == "County") idxCounty = i;
+        else if (headers[i] == "State") idxState = i;
+    }
+    if (idxCounty == -1 || idxState == -1) {
+        cout << "CSV missing County or State column" << endl;
+        return counties;
+    }
+
+    while (getline(in, line)) {
+        stringstream ss(line);
+        vector<string> cells;
+        string cell;
+        while (getline(ss, cell, ',')) {
+            cells.push_back(trim(cell));
+        }
+        // if malformed row then it skips
+        if ((int)cells.size() != (int)headers.size()) {
+            
+            continue;
+        }
+
+        County c;
+        c.name = cells[idxCounty];
+        c.state = cells[idxState];
+
+        for (int i = 0; i < (int)headers.size(); ++i) {
+            if (i == idxCounty || i == idxState) continue;
+            string key = headers[i];
+            if (cells[i].empty()) continue;
+            try {
+                double val = stod(cells[i]);
+                c.metrics[key] = val;
+            } catch (...) {
+                // skip invalid
+                cout << "Warning: non-numeric value for county '" << c.name;
+            }
+        }
+
+        counties.push_back(move(c));
+    }
+
+    return counties;
+}
+
 int main() {
     //Load all the parameters into a vector of pairs
     vector<pair<char, string>> coreMetricsList = loadCoreMetrics();
