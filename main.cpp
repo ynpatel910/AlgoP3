@@ -62,10 +62,12 @@ vector<pair<char, string>> loadFullMetrics() {
         };
     return fullMetrics;
 }
+
+// Function to run the menu and display metrics
 void runMenu(vector<pair<char,string>> core, vector<pair<char,string>> full) {
     cout << "Welcome to County Rank!" << endl;
     int metricType;
-    cout << "Enter 0 for core metrics list, enter 1 for full metrics list" << endl;
+    cout << "Enter 0 for core metrics list, enter 1 for full metrics list:" << endl;
     cin >> metricType;
     cout << "Select your top 5 most important metrics!" << endl;
     if (metricType == 0) {
@@ -81,6 +83,7 @@ void runMenu(vector<pair<char,string>> core, vector<pair<char,string>> full) {
 
 }
 
+// Function to trim whitespace from the start and end of a string
 static inline string trim(const string &s) {
     size_t start = s.find_first_not_of(" \t\r\n");
     if (start == string::npos) return "";
@@ -88,12 +91,14 @@ static inline string trim(const string &s) {
     return s.substr(start, end - start + 1);
 }
 
+// Struct to hold county data
 struct County {
     string name;
     string state;
     unordered_map<string, double> metrics;
 };
 
+// Function to load counties from a CSV file
 vector<County> loadCounties(const string &filename) {
     vector<County> counties;
     ifstream in(filename);
@@ -115,12 +120,13 @@ vector<County> loadCounties(const string &filename) {
             headers.push_back(trim(cell));
         }
     }
-
+    // Check if headers are present
     int idxCounty = -1, idxState = -1;
     for (int i = 0; i < (int)headers.size(); ++i) {
         if (headers[i] == "County") idxCounty = i;
         else if (headers[i] == "State") idxState = i;
     }
+    // Check if County and State columns are present
     if (idxCounty == -1 || idxState == -1) {
         cout << "CSV missing County or State column" << endl;
         return counties;
@@ -143,6 +149,7 @@ vector<County> loadCounties(const string &filename) {
         c.name = cells[idxCounty];
         c.state = cells[idxState];
 
+        // Skip if county or state is empty
         for (int i = 0; i < (int)headers.size(); ++i) {
             if (i == idxCounty || i == idxState) continue;
             string key = headers[i];
