@@ -64,24 +64,51 @@ vector<pair<char, string>> loadFullMetrics() {
 }
 
 // Function to run the menu and display metrics
-void runMenu(vector<pair<char,string>> core, vector<pair<char,string>> full) {
+vector<string> runMenu(vector<pair<char, string>> core, vector<pair<char, string>> full) {
     cout << "Welcome to County Rank!" << endl;
     int metricType;
     cout << "Enter 0 for core metrics list, enter 1 for full metrics list:" << endl;
     cin >> metricType;
-    cout << "Select your top 5 most important metrics!" << endl;
+
+    vector<pair<char, string>> selectedList;
     if (metricType == 0) {
-        for (auto pair : core) {
-            cout << pair.first << ") " << pair.second << endl;
-        }
+        selectedList = core;
+    } else {
+        selectedList = full;
     }
-    else if (metricType == 1) {
-        for (auto pair : full) {
-            cout << pair.first << ") " << pair.second << endl;
+
+    // Display the list
+    cout << "Select your top 5 most important metrics!" << endl;
+    for (auto &pair : selectedList) {
+        cout << pair.first << ") " << pair.second << endl;
+    }
+
+    unordered_map<char, string> validMetrics;
+    for (auto &p : selectedList) {
+        validMetrics[p.first] = p.second;
+    }
+
+    vector<string> chosenMetrics;
+    char input;
+    while (chosenMetrics.size() < 5) {
+        cout << "Enter choice #" << (chosenMetrics.size() + 1) << ": ";
+        cin >> input;
+
+        if (validMetrics.find(input) != validMetrics.end()) {
+            // Check for duplicates
+            if (find(chosenMetrics.begin(), chosenMetrics.end(), validMetrics[input]) == chosenMetrics.end()) {
+                chosenMetrics.push_back(validMetrics[input]);
+            } else {
+                cout << "You've already selected that metric. Try a different one." << endl;
+            }
+        } else {
+            cout << "Invalid selection. Try again." << endl;
         }
     }
 
+    return chosenMetrics;
 }
+
 
 // Function to trim whitespace from the start and end of a string
 static inline string trim(const string &s) {
@@ -192,9 +219,17 @@ double compute_score(const County &c, const unordered_map<string, double> &weigh
 }
 
 int main() {
-    //Load all the parameters into a vector of pairs
     vector<pair<char, string>> coreMetricsList = loadCoreMetrics();
     vector<pair<char, string>> fullMetricsList = loadFullMetrics();
-    runMenu(coreMetricsList, fullMetricsList);
+
+    vector<string> selectedMetrics = runMenu(coreMetricsList, fullMetricsList);
+
+    // Display selected metrics
+    cout << "\nYou selected the following metrics:\n";
+    for (const auto &metric : selectedMetrics) {
+        cout << "- " << metric << endl;
+    }
+
+
     return 0;
 }
