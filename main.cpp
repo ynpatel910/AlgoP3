@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <unordered_map>
 #include <string>
+#include <map>
 using namespace std;
 vector<pair<char, string>> loadCoreMetrics() {
     vector<pair<char, string>> coreMetrics = {
@@ -62,6 +63,17 @@ vector<pair<char, string>> loadFullMetrics() {
         };
     return fullMetrics;
 }
+//Assigns a ranking to the metric and assigns it to a map
+map<double, string> rankMetric(const vector<string> &metricsVec) {
+    map<double, string> metricsRank;
+    for (auto &metric : metricsVec) {
+        cout << "Rank the importance of the metric " << "[" <<metric << "]" << " 1-5" << endl;
+        int rank;
+        cin >> rank;
+        metricsRank[rank] = metric;
+    }
+    return metricsRank;
+}
 
 // Function to run the menu and display metrics
 vector<string> runMenu(vector<pair<char, string>> core, vector<pair<char, string>> full) {
@@ -105,10 +117,8 @@ vector<string> runMenu(vector<pair<char, string>> core, vector<pair<char, string
             cout << "Invalid selection. Try again." << endl;
         }
     }
-
     return chosenMetrics;
 }
-
 
 // Function to trim whitespace from the start and end of a string
 static inline string trim(const string &s) {
@@ -223,13 +233,22 @@ int main() {
     vector<pair<char, string>> fullMetricsList = loadFullMetrics();
 
     vector<string> selectedMetrics = runMenu(coreMetricsList, fullMetricsList);
-
-    // Display selected metrics
+    //creates a sorted map with rank 1 first and rank 5 last
+    map<double, string> metricsRankMap = rankMetric(selectedMetrics);
+    // Display selected metrics and their respective rankings
     cout << "\nYou selected the following metrics:\n";
-    for (const auto &metric : selectedMetrics) {
-        cout << "- " << metric << endl;
+    for (const auto &pair : metricsRankMap) {
+        cout << "- Rank " << pair.first << ": " << pair.second << endl;
     }
-
+    //creates metric weight map
+    unordered_map<string,double> weights;
+    for (auto &p : metricsRankMap) {
+        double rank = p.first; //the ranking in double
+        string name = p.second; //the metric
+        weights[name] = 6.0 - rank;
+    }
+    //load the counties (this function returns a vector)
+    auto counties = loadCounties("county_demographics.csv");
 
     return 0;
 }
