@@ -7,6 +7,7 @@
 #include <string>
 #include <map>
 using namespace std;
+
 vector<pair<char, string>> loadCoreMetrics() {
     vector<pair<char, string>> coreMetrics = {
         {'A', "Income.Median Household Income"},
@@ -22,6 +23,7 @@ vector<pair<char, string>> loadCoreMetrics() {
     };
     return coreMetrics;
 }
+
 vector<pair<char, string>> loadFullMetrics() {
     vector<pair<char, string>> fullMetrics = {
         {'A', "Age.Percent 65 and Older"},
@@ -63,6 +65,7 @@ vector<pair<char, string>> loadFullMetrics() {
         };
     return fullMetrics;
 }
+
 //Assigns a ranking to the metric and assigns it to a map
 map<double, string> rankMetric(const vector<string> &metricsVec) {
     map<double, string> metricsRank;
@@ -70,6 +73,7 @@ map<double, string> rankMetric(const vector<string> &metricsVec) {
         cout << "Rank the importance of the metric " << "[" <<metric << "]" << " 1-5" << endl;
         int rank;
         cin >> rank;
+
         metricsRank[rank] = metric;
     }
     return metricsRank;
@@ -117,16 +121,18 @@ vector<string> runMenu(vector<pair<char, string>> core, vector<pair<char, string
             cout << "Invalid selection. Try again." << endl;
         }
     }
+
     return chosenMetrics;
 }
 
+
 // Function to trim whitespace from the start and end of a string
 static inline string trim(const string &s) {
-    size_t start = s.find_first_not_of(" \t\r\n");
+    size_t start = s.find_first_not_of(" \t\r\n\"");
     if (start == string::npos) {
         return "";
     }
-    size_t end = s.find_last_not_of(" \t\r\n");
+    size_t end = s.find_last_not_of(" \t\r\n\"");
     return s.substr(start, end - start + 1);
 }
 
@@ -135,6 +141,7 @@ struct County {
     string name;
     string state;
     unordered_map<string, double> metrics;
+    double score = 0.0;
 };
 
 // Function to load counties from a CSV file
@@ -240,6 +247,10 @@ int main() {
     for (const auto &pair : metricsRankMap) {
         cout << "- Rank " << pair.first << ": " << pair.second << endl;
     }
+
+    // Load county data
+    vector<County> counties = loadCounties("county_demographics.csv");
+
     //creates metric weight map
     unordered_map<string,double> weights;
     for (auto &p : metricsRankMap) {
@@ -247,8 +258,30 @@ int main() {
         string name = p.second; //the metric
         weights[name] = 6.0 - rank;
     }
-    //load the counties (this function returns a vector)
-    auto counties = loadCounties("county_demographics.csv");
+
+    // Score counties
+    for (auto &county : counties) {
+        county.score = compute_score(county, weights);
+    }
+
+    // Sort counties by score
+    sort(counties.begin(), counties.end(), [](const County &a, const County &b) {
+        return a.score > b.score;
+    });
+
+    // Write to CSV
+    ofstream out("ranked.csv");
+    if (!out.is_open()) {
+        cout << "\nFailed to write ranked.csv" << endl;
+        return 1;
+    }
+    out << "County,State,Score\n";
+    for (const auto &c : counties) {
+        out << "\"" << c.name << "\",\"" << c.state << "\"," << c.score << "\n";
+    }
+    out.close();
+
+    cout << "\nRanking complete! Results written to 'ranked.csv'.\n";
 
     return 0;
 }
