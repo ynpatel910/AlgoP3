@@ -357,7 +357,7 @@ vector<pair<double,const County*>> get_ranked_with_heap(
         out.emplace_back(top.first, &counties[top.second]);
     }
     return out;
-}
+}//
 vector<pair<double,const County*>> get_ranked_counties(
     const vector<County> &counties,
     const unordered_map<string, double> &weights,
