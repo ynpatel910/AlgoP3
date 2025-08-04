@@ -4,8 +4,13 @@
 #include <sstream>
 #include <algorithm>
 #include <unordered_map>
+#include <queue>
+#include <iomanip>
+#include <limits>
+#include <utility>
 #include <string>
 #include <map>
+#include <chrono>
 using namespace std;
 
 vector<pair<char, string>> loadCoreMetrics() {
@@ -67,13 +72,29 @@ vector<pair<char, string>> loadFullMetrics() {
 }
 
 //Assigns a ranking to the metric and assigns it to a map
-map<double, string> rankMetric(const vector<string> &metricsVec) {
-    map<double, string> metricsRank;
-    for (auto &metric : metricsVec) {
-        cout << "Rank the importance of the metric " << "[" <<metric << "]" << " 1-5" << endl;
-        int rank;
-        cin >> rank;
-
+map<int, string> rankMetric(const vector<string> &metricsVec) {
+    map<int, string> metricsRank;
+    for (const auto &metric : metricsVec) {
+        int rank = 0;
+        while (true) {
+            cout << "Rank the importance of the metric " << "[" << metric << "]" << " 1-5: ";
+            // Validate input
+            if (!(cin >> rank)) {
+                cin.clear();
+                cin.ignore(numeric_limits<streamsize>::max(), '\n');
+                cout << "Invalid input. Enter a number between 1 and 5.\n";
+                continue;
+            }
+            if (rank < 1 || rank > 5) {
+                cout << "Rank must be between 1 and 5.\n";
+                continue;
+            }
+            if (metricsRank.find(rank) != metricsRank.end()) {
+                cout << "That rank is already used for [" << metricsRank[rank] << "]. Pick a different one.\n";
+                continue;
+            }
+            break;
+        }
         metricsRank[rank] = metric;
     }
     return metricsRank;
@@ -187,13 +208,11 @@ vector<County> loadCounties(const string &filename) {
         while (getline(ss, cell, ',')) {
             cells.push_back(trim(cell));
         }
-        
+
         // if malformed row then it skips
         if (static_cast<int>(cells.size()) != static_cast<int>(headers.size())) {
-            
             continue;
         }
-
         County c;
         c.name = cells[idxCounty];
         c.state = cells[idxState];
@@ -208,31 +227,186 @@ vector<County> loadCounties(const string &filename) {
                 c.metrics[key] = val;
             } catch (...) {
                 // skips invalid
-                cout << "Warning: non-numeric value for county '" << c.name;
+                cout << "Warning: non-numeric value for county '" << c.name << "', metric '" << key << "': \"" << cells[i] << "\"\n";
             }
         }
-
         counties.push_back(move(c));
     }
-
     return counties;
 }
 
 // Function to compute the score for a county based on selected metrics and their weights
 double compute_score(const County &c, const unordered_map<string, double> &weights) {
-    double score = 0.0;
-    double totalWeight = 0.0;
-    for (auto &[metric, weight] : weights) {
+    double score = 0;
+    double totalWeight = 0;
+    for (const auto &pair : weights) {
+        const string &metric = pair.first;
+        double weight = pair.second;
+
+        // Check if the metric exists in the county's data
         auto it = c.metrics.find(metric);
         if (it != c.metrics.end()) {
-            score += it->second * weight;
-            totalWeight += weight;
+            score += it->second * weight; // Add weighted score
+            totalWeight += weight; // Accumulate total weight
         }
     }
-    if (totalWeight == 0.0) {
+    if (totalWeight == 0) {
         return 0.0; // Avoid division by zero
     }
     return score / totalWeight; // Normalize the score
+}
+
+void mergeSortArr(
+    vector<pair<double, const County*>> &arr,
+    int l,
+    int r,
+    vector<pair<double, const County*>> &tmp,
+    bool wantMin
+) {
+    // Base case: if the range has 1 or 0 elements, it's already sorted
+    if (r - l <= 1) {
+        return;
+    }
+
+    // Find the middle point
+    int m = (l + r) / 2;
+
+    // Recursively sort both halves
+    mergeSortArr(arr, l, m, tmp, wantMin);
+    mergeSortArr(arr, m, r, tmp, wantMin);
+
+    // Merge the two halves
+    int i = l;     // pointer for the left half
+    int j = m;     // pointer for the right half
+    int k = l;     // pointer for the merged array (tmp)
+
+    // Merge elements into tmp based on wantMin
+    while (i < m || j < r) {
+        bool takeLeft;
+
+        // If the right half is empty, take from left
+        if (j >= r) {
+            takeLeft = true;
+        }
+        // If left half is empty, take from right
+        else if (i >= m) {
+            takeLeft = false;
+        }
+        // Compare values and decide
+        else if (wantMin) {
+            takeLeft = arr[i].first < arr[j].first; // Sort ascending
+        } else {
+            takeLeft = arr[i].first > arr[j].first; // Sort descending
+        }
+
+        // Copy the appropriate element to tmp
+        if (takeLeft) {
+            tmp[k] = arr[i];
+            i++;
+        } else {
+            tmp[k] = arr[j];
+            j++;
+        }
+
+        k++;
+    }
+
+    // Copy merged result back to original array
+    for (int x = l; x < r; x++) {
+        arr[x] = tmp[x];
+    }
+}
+// -----------------------------
+void heapifyDown(vector<pair<double,int>>& heap, int i, int heapSize, bool wantMin) {
+    int best = i, L = 2*i+1, R = 2*i+2;
+    auto cmp = [&](const pair<double,int>& a, const pair<double,int>& b){
+        return wantMin ? (a.first < b.first) : (a.first > b.first);
+    };
+    if (L < heapSize && cmp(heap[L], heap[best])) best = L;
+    if (R < heapSize && cmp(heap[R], heap[best])) best = R;
+    if (best != i) {
+        swap(heap[i], heap[best]);
+        heapifyDown(heap, best, heapSize, wantMin);
+    }
+}
+
+vector<pair<double,const County*>> get_ranked_with_heap(
+    const vector<County>& counties,
+    const unordered_map<string,double>& weights,
+    bool wantMin,
+    int K
+) {
+    int N = counties.size();
+    vector<pair<double,int>> heap;
+    heap.reserve(N);
+    for (int i = 0; i < N; ++i) {
+        heap.emplace_back(compute_score(counties[i], weights), i);
+    }
+    // Build heap in O(N)
+    for (int i = N/2 - 1; i >= 0; --i)
+        heapifyDown(heap, i, N, wantMin);
+
+    // Extract top K
+    vector<pair<double,const County*>> out;
+    out.reserve(K);
+    int size = N;
+    for (int i = 0; i < K && size > 0; ++i) {
+        auto top = heap[0];
+        swap(heap[0], heap[size - 1]);
+        --size;
+        heapifyDown(heap, 0, size, wantMin);
+        out.emplace_back(top.first, &counties[top.second]);
+    }
+    return out;
+}
+vector<pair<double,const County*>> get_ranked_counties(
+    const vector<County> &counties,
+    const unordered_map<string, double> &weights,
+    bool wantMin,
+    int K
+) {
+    int N = counties.size();
+    // 1) Build a scored array
+    vector<pair<double,const County*>> scored;
+    scored.reserve(N);
+    for (const auto &c : counties) {
+        double s = compute_score(c, weights);
+        scored.emplace_back(s, &c);
+    }
+
+    // 2) Prepare temp buffer & sort
+    vector<pair<double,const County*>> tmp(N);
+    mergeSortArr(scored, 0, N, tmp, wantMin);
+
+    // 3) Slice out the top‐K or bottom‐K
+    vector<pair<double,const County*>> result;
+    result.reserve(K);
+    if (wantMin) {
+        // smallest-K: first K
+        for (int i = 0; i < K && i < N; ++i)
+            result.push_back(scored[i]);
+    } else {
+        // largest-K: first K (because arr[0] is largest)
+        for (int i = 0; i < K && i < N; ++i)
+            result.push_back(scored[i]);
+    }
+    return result;
+}
+
+
+void printRankedFromCSV(const string &filename) {
+    ifstream in(filename);
+    if (!in) {
+        cerr << "Could not open " << filename << "\n";
+        return;
+    }
+    string line;
+    // skip header
+    getline(in, line);
+    // print each data line
+    while (getline(in, line)) {
+        cout << line << "\n";
+    }
 }
 
 int main() {
@@ -241,7 +415,7 @@ int main() {
 
     vector<string> selectedMetrics = runMenu(coreMetricsList, fullMetricsList);
     //creates a sorted map with rank 1 first and rank 5 last
-    map<double, string> metricsRankMap = rankMetric(selectedMetrics);
+    map<int, string> metricsRankMap = rankMetric(selectedMetrics);
     // Display selected metrics and their respective rankings
     cout << "\nYou selected the following metrics:\n";
     for (const auto &pair : metricsRankMap) {
@@ -252,22 +426,39 @@ int main() {
     vector<County> counties = loadCounties("county_demographics.csv");
 
     //creates metric weight map
-    unordered_map<string,double> weights;
+    unordered_map<string, double> weights;
     for (auto &p : metricsRankMap) {
         double rank = p.first; //the ranking in double
         string name = p.second; //the metric
         weights[name] = 6.0 - rank;
     }
 
-    // Score counties
-    for (auto &county : counties) {
-        county.score = compute_score(county, weights);
-    }
+    cout << "Enter 0 to get the highest ranked counties, enter 1 to get the lowest ranked counties:" << endl;
+    int choice = 0;
+    cin >> choice;
+    bool wantMin = (choice == 1);
 
-    // Sort counties by score
-    sort(counties.begin(), counties.end(), [](const County &a, const County &b) {
-        return a.score > b.score;
-    });
+    cout << "How many counties do you want to rank? (default 10): ";
+    int K = 10;
+    cin >> K;
+    if (K <= 0) {
+        K = 10; // Default to 10 if invalid input
+    }
+    auto t0 = chrono::high_resolution_clock::now();
+    auto topHeap = get_ranked_with_heap(counties, weights, wantMin, K);
+    auto t1 = chrono::high_resolution_clock::now();
+
+    // 6) Merge-sort approach
+    auto t2 = chrono::high_resolution_clock::now();
+    auto topMerge = get_ranked_counties(counties, weights, wantMin, K);
+    auto t3 = chrono::high_resolution_clock::now();
+
+    // 7) Output timings
+    cout << fixed << setprecision(3)
+         << "Heap time:  " << chrono::duration<double>(t1-t0).count()  << "s\n"
+         << "Merge time: " << chrono::duration<double>(t3-t2).count() << "s\n";
+
+    auto ranked = get_ranked_counties(counties, weights, wantMin, K);
 
     // Write to CSV
     ofstream out("ranked.csv");
@@ -276,12 +467,19 @@ int main() {
         return 1;
     }
     out << "County,State,Score\n";
-    for (const auto &c : counties) {
-        out << "\"" << c.name << "\",\"" << c.state << "\"," << c.score << "\n";
+    for (const auto &entry : ranked) {
+        double score = entry.first;
+        const County *c = entry.second;
+        out << "\"" << c->name << "\",\"" << c->state << "\"," << fixed << setprecision(2) << score << "\n";
     }
     out.close();
 
     cout << "\nRanking complete! Results written to 'ranked.csv'.\n";
-
+    cout << "Would you like to print them out? (Y/N)" << endl;
+    char printOut;
+    cin >> printOut;
+    if (printOut == 'Y') {
+        printRankedFromCSV("ranked.csv");
+    }
     return 0;
 }
