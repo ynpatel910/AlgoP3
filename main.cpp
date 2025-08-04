@@ -316,7 +316,6 @@ void mergeSortArr(
         arr[x] = tmp[x];
     }
 }
-// -----------------------------
 void heapifyDown(vector<pair<double,int>>& heap, int i, int heapSize, bool wantMin) {
     int best = i, L = 2*i+1, R = 2*i+2;
     auto cmp = [&](const pair<double,int>& a, const pair<double,int>& b){
@@ -342,7 +341,7 @@ vector<pair<double,const County*>> get_ranked_with_heap(
     for (int i = 0; i < N; ++i) {
         heap.emplace_back(compute_score(counties[i], weights), i);
     }
-    // Build heap in O(N)
+    // build heap
     for (int i = N/2 - 1; i >= 0; --i)
         heapifyDown(heap, i, N, wantMin);
 
